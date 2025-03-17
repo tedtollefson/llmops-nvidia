@@ -1,0 +1,20 @@
+
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: finetuning-ms-models-pv
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: "50Gi"
+  storageClassName: manual
+  accessModes:
+    - "ReadWriteMany"
+  persistentVolumeReclaimPolicy: Retain
+  claimRef:
+    namespace: nemo-customizer
+    name: finetuning-ms-models-pvc
+  hostPath:
+    path: "/finetuning-ms-models"
+

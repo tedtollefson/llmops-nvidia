@@ -1,0 +1,119 @@
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nemo-customizer
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - chart: nemo-customizer
+      repoURL: 'docker-registry.registry.svc.cluster.local/nvidia/nemo-microservices/charts'
+      targetRevision: "0.9.0-alpha.22"
+      helm:
+        releaseName: nemo-customizer
+        valuesObject:
+          global:
+            imagePullSecrets:
+              - name: nvcrimagepullsecret
+            storageClass: "standard"
+
+          # This needs only one install per cluster
+          volcano:
+            enabled: false
+
+          # Configure the PVC for models mount, where we store the parent/base models.
+          modelsStorage:
+            enabled: true
+            storageClassName: "manual"
+            size: 50Gi
+            accessModes:
+              - ReadWriteMany
+          # Configure the PVC for a training job's workspace, where we store the checkpoints and fine-tuned model.
+          workspaceStorage:
+            enabled: true
+            storageClassName: "standard"
+            size: 50Gi
+            accessModes:
+              - ReadWriteMany
+
+          postgresql:
+            # Tells our Helm chart to leverage the information in externalDatabase instead.
+            enabled: false
+          image:
+            registry: 192.168.49.2:30500
+            repository: nvidia/nemo-microservices/customizer
+            tag: 25.01
+
+          customizerConfig:
+            nemoOperatorURL: "http://nemo-deployment-management.nemo-deployment-management.svc.cluster.local:8000"
+            nemoDataStoreURL: "http://nemo-datastore.nemo-datastore.svc.cluster.local:3000"
+            entityStoreURL: "http://nemo-entity-store.nemo-entity-store.svc.cluster.local:8000"
+            mlflowURL: "http://mlflow-tracking.mlflow.svc.cluster.local:80"
+            models:
+              meta/llama-3.1-8b-instruct:
+                # dataStoreURL is the internal K8s DNS record for the Data Store service.
+                enabled: true
+                model_path: llama-3_1-8b-instruct
+                finetuning_types:
+                  - lora
+                num_gpus: 1
+                micro_batch_size: 1
+                tensor_parallel_size: 1
+                max_seq_length: 4096
+            training:
+              pvc:
+                storageClass: "standard"
+
+          nemoDataStoreTools:
+            registry: 192.168.49.2:30500
+            repository: nvidia/nemo-microservices/nds-v2-huggingface-cli
+            tag: 25.01
+            pullSecrets:
+            - name: nvcrimagepullsecret
+
+          # Configure the custom volcano scheduling queue
+          customizerQueue:
+            weight: 5
+            capability:
+              nvidiaGPU: 4
+              mlnxnics: 8
+
+          externalDatabase:
+            host: postgresql.postgresql.svc.cluster.local
+            port: 5432
+            user: nemo-user
+            database: finetuning
+            existingSecret: "existing-postgres-auth-secret" 
+            existingSecretPasswordKey: "postgresql-user-password" 
+    - repoURL: 'ssh://git@github.com/tedtollefson/llmops-nvidia.git'
+      path: k8s-manifests/nemo-customizer
+      targetRevision: main
+      directory:
+        recurse: true  
+    - repoURL: 'ssh://git@github.com/tedtollefson/llmops-nvidia.git'
+      path: secrets/postgres
+      targetRevision: main
+      directory:
+        recurse: true   
+    - repoURL: 'ssh://git@github.com/tedtollefson/llmops-nvidia.git'
+      path: secrets/nvcr
+      targetRevision: main
+      directory:
+        recurse: true  
+    - repoURL: 'ssh://git@github.com/tedtollefson/llmops-nvidia.git'
+      path: ingress/nemo-customizer
+      targetRevision: main
+      directory:
+        recurse: true 
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: nemo-customizer
+  syncPolicy:
+    syncOptions:
+    - Validate=false
+    - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
