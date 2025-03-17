@@ -1,0 +1,61 @@
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nemo-entity-store
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - chart: nemo-entity-store
+      repoURL: 'docker-registry.registry.svc.cluster.local/nvidia/nemo-microservices/charts'
+      targetRevision: "0.1.0"
+      helm:
+        releaseName: nemo-entity-store
+        valuesObject:
+          imagePullSecrets:
+            - name: nvcrimagepullsecret
+          image:
+            repository: 192.168.49.2:30500/nvidia/nemo-microservices/nemo-entity-store
+            tag: 25.01
+          postgresql:
+            enabled: false
+          appConfig:
+            BASE_URL_NIM: http://meta-llama3-1-8b-instruct.llama3-1-8b-instruct.svc.cluster.local:8000
+            BASE_URL_DATASTORE: http://nemo-datastore.nemo-datastore.svc.cluster.local:3000/v1/hf
+                        
+          externalDatabase:
+            host: "postgresql.postgresql.svc.cluster.local"
+            port: 5432
+            user: "nemo-user"
+            password: "QuX2+P16SPc7"
+            database: "gateway"
+            sslMode: "disable"
+            existingSecret: "existing-postgres-auth-secret"
+            existingSecretPasswordKey: "postgresql-admin-password"
+    - repoURL: 'ssh://git@github.com/tedtollefson/llmops-nvidia.git'
+      path: secrets/postgres
+      targetRevision: main
+      directory:
+        recurse: true   
+    - repoURL: 'ssh://git@github.com/tedtollefson/llmops-nvidia.git'
+      path: secrets/nvcr
+      targetRevision: main
+      directory:
+        recurse: true  
+    - repoURL: 'ssh://git@github.com/tedtollefson/llmops-nvidia.git'
+      path: ingress/nemo-entity-store
+      targetRevision: main
+      directory:
+        recurse: true  
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: nemo-entity-store
+  syncPolicy:
+    syncOptions:
+    - Validate=false
+    - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
