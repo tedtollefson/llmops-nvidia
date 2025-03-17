@@ -1,0 +1,94 @@
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nemo-datastore
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - chart: nemo-datastore
+      repoURL: 'docker-registry.registry.svc.cluster.local/nvidia/nemo-microservices/charts'
+      targetRevision: "0.4.1"
+      helm:
+        releaseName: nemo-datastore
+        valuesObject:
+          ingress:
+            enabled: false
+          service:
+            http:
+              clusterIP: ""
+          replicaCount: 1
+          image:
+            repository: 192.168.49.2:30500/nvidia/nemo-microservices/datastore
+            tag: 25.01
+          persistence:
+            enabled: true
+            claimName: datastore-shared-storage
+            size: 70Gi
+            storageClass: "standard"
+            accessModes:
+              - ReadWriteOnce
+          external:
+            rootUrl: ""
+            domain: ""
+          postgresql:
+            enabled: false
+          objectStore:
+            enabled: false
+            endpoint: "minio-client.minio.svc.cluster.local:9000"
+            bucketName: "datastore"
+            existingSecret: "existing-minio-auth-secret"
+            existingSecretAccessKey: "username"
+            existingSecretAccessSecret: "password"
+            region: ""
+            ssl: false
+          jwtSecret:
+            value: ""
+          serviceAccount:
+            create: true
+            imagePullSecrets:
+            - name: nvcrimagepullsecret
+            name: datastore
+          strategy:
+            type: Recreate
+          externalDatabase:
+            host: "postgresql.postgresql.svc.cluster.local"
+            port: 5432
+            user: "nemo-user"
+            database: "api-database"
+            sslMode: "disable"
+            existingSecret: "existing-postgres-auth-secret"
+            existingSecretPasswordKey: "postgresql-admin-password"
+
+    - repoURL: 'ssh://git@github.com/tedtollefson/llmops-nvidia.git'
+      path: secrets/minio
+      targetRevision: main
+      directory:
+        recurse: true 
+    - repoURL: 'ssh://git@github.com/tedtollefson/llmops-nvidia.git'
+      path: secrets/postgres
+      targetRevision: main
+      directory:
+        recurse: true   
+    - repoURL: 'ssh://git@github.com/tedtollefson/llmops-nvidia.git'
+      path: secrets/nvcr
+      targetRevision: main
+      directory:
+        recurse: true  
+    - repoURL: 'ssh://git@github.com/tedtollefson/llmops-nvidia.git'
+      path: ingress/nemo-datastore
+      targetRevision: main
+      directory:
+        recurse: true  
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: nemo-datastore
+  syncPolicy:
+    syncOptions:
+    - Validate=false
+    - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
