@@ -1,0 +1,33 @@
+
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: nim-llm-pv
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: "50Gi"
+  storageClassName: manual
+  accessModes:
+    - "ReadWriteMany"
+  persistentVolumeReclaimPolicy: Retain
+  claimRef:
+    namespace: llama3-1-8b-instruct
+    name: nim-llm-pvc
+  hostPath:
+    path: "/inference-model-data"
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: nim-llm-pvc
+  labels:
+    app.kubernetes.io/name: nim-llm-pvc
+spec:
+  accessModes:
+    - "ReadWriteMany"
+  storageClassName: manual
+  resources:
+    requests:
+      storage: "50Gi"

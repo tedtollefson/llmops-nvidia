@@ -1,0 +1,37 @@
+
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMService
+metadata:
+  name: meta-llama3-1-8b-instruct
+spec:
+  image:
+    repository: "192.168.49.2:30500/nvidia/nemo-microservices/llama-3.1-8b-instruct"
+    tag: "1.5"
+    pullPolicy: IfNotPresent
+  authSecret: ngc-api
+  env:
+  - name: NIM_DISABLE_MODEL_DOWNLOAD
+    value: "true"
+  - name: NIM_IGNORE_MODEL_DOWNLOAD_FAIL 
+    value: "true"
+  - name: NIM_MANIFEST_PROFILE
+    value: "7b8458eb682edb0d2a48b4019b098ba0bfbc4377aadeeaa11b346c63c7adf724"
+  - name: NIM_MODEL_PROFILE
+    value: "7b8458eb682edb0d2a48b4019b098ba0bfbc4377aadeeaa11b346c63c7adf724"
+  - name: NIM_MODEL_NAME
+    value: "/model-store"
+  - name: NIM_PEFT_SOURCE
+    value: http://nemo-entity-store.nemo-entity-store.svc.cluster.local:8000
+  - name: NIM_PEFT_REFRESH_INTERVAL
+    value: "30"
+  storage:
+    pvc:
+      name: "nim-llm-pvc"
+  replicas: 1
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+  expose:
+    service:
+      type: ClusterIP
+      port: 8000
